@@ -137,12 +137,22 @@ const API_CONFIG = {
  * @prop {string} symbol Market symbol
  * @prop {string} currencyId Currency ID
  * @prop {string} unitId Unit ID
+ * @prop {string} [groupId] Group ID for organizing drawings
+ */
+
+/**
+ * @typedef {Object} DrawingGroup
+ * @prop {string} id Group ID
+ * @prop {string} name Group name
+ * @prop {string} symbol Market symbol
+ * @prop {string} currencyId Currency ID (usually null)
+ * @prop {string} unitId Unit ID (usually null)
  */
 
 /**
  * @typedef {Object} DrawingSources
  * @prop {Object<string, DrawingState>} sources Drawing sources object
- * @prop {Object} drawing_groups Drawing groups
+ * @prop {Object<string, DrawingGroup>} drawing_groups Drawing groups object
  * @prop {string} clientId Client ID
  */
 
@@ -341,6 +351,7 @@ class ChartDrawings {
     try {
       const jwt = await this.getJWTToken(layoutId);
       const url = `${this.baseURL}/get/layout/${layoutId}/sources`;
+      const headers = this._createHeaders();
       
       const params = {
         chart_id: chartId,
@@ -351,7 +362,10 @@ class ChartDrawings {
         params.symbol = symbol;
       }
 
-      const response = await axios.get(url, { params });
+      const response = await axios.get(url, { 
+        headers,
+        params 
+      });
 
       if (!response.data.payload) {
         throw new Error('No drawing data found');
@@ -373,17 +387,25 @@ class ChartDrawings {
    * @param {string} options.symbol Market symbol
    * @param {DrawingPoint[]} options.points Array of two points
    * @param {Object} [options.style] Style configuration
+   * @param {string} [options.groupId] Group ID to assign drawing to
    * @returns {DrawingState} Trend line drawing state
    */
   createTrendLine(options) {
     this._validateDrawingOptions(options, 2);
     
-    return this._createBaseDrawingState(
+    const drawing = this._createBaseDrawingState(
       options,
       DRAWING_TYPES.TREND_LINE,
       DEFAULT_STYLES.TREND_LINE,
       Z_ORDER.TREND_LINE
     );
+
+    // Add group assignment if specified
+    if (options.groupId) {
+      drawing.groupId = options.groupId;
+    }
+
+    return drawing;
   }
 
   /**
@@ -393,17 +415,176 @@ class ChartDrawings {
    * @param {string} options.symbol Market symbol
    * @param {DrawingPoint[]} options.points Array of two points (top-left and bottom-right)
    * @param {Object} [options.style] Style configuration
+   * @param {string} [options.groupId] Group ID to assign drawing to
    * @returns {DrawingState} Rectangle drawing state
    */
   createRectangle(options) {
     this._validateDrawingOptions(options, 2);
     
-    return this._createBaseDrawingState(
+    const drawing = this._createBaseDrawingState(
       options,
       DRAWING_TYPES.RECTANGLE,
       DEFAULT_STYLES.RECTANGLE,
       Z_ORDER.RECTANGLE
     );
+
+    // Add group assignment if specified
+    if (options.groupId) {
+      drawing.groupId = options.groupId;
+    }
+
+    return drawing;
+  }
+
+  /**
+   * Create a drawing group
+   * @param {Object} options Group options
+   * @param {string} [options.id] Group ID (auto-generated if not provided)
+   * @param {string} options.name Group name
+   * @param {string} options.symbol Market symbol
+   * @returns {DrawingGroup} Drawing group
+   */
+  createDrawingGroup(options) {
+    if (!options.name) {
+      throw new Error('Group name is required');
+    }
+    if (!options.symbol) {
+      throw new Error('Symbol is required');
+    }
+
+    return {
+      id: options.id || this.generateDrawingId(),
+      name: options.name,
+      symbol: options.symbol,
+      currencyId: null,
+      unitId: null,
+    };
+  }
+
+  /**
+   * Create complete drawing sources data with groups
+   * @param {Object} options Drawing sources options
+   * @param {DrawingState[]} options.drawings Array of drawings
+   * @param {DrawingGroup[]} [options.groups] Array of drawing groups
+   * @param {string} [options.clientId] Client ID (auto-generated if not provided)
+   * @returns {DrawingSources} Complete drawing sources data
+   */
+  createDrawingSources(options) {
+    if (!options.drawings || !Array.isArray(options.drawings)) {
+      throw new Error('Drawings array is required');
+    }
+
+    const sources = {};
+    const drawing_groups = {};
+
+    // Process drawings
+    options.drawings.forEach(drawing => {
+      sources[drawing.id] = drawing;
+    });
+
+    // Process groups
+    if (options.groups && Array.isArray(options.groups)) {
+      options.groups.forEach(group => {
+        drawing_groups[group.id] = group;
+      });
+    }
+
+    return {
+      sources,
+      drawing_groups,
+      clientId: options.clientId || this.generateClientId(),
+    };
+  }
+
+  /**
+   * Add a drawing to a group
+   * @param {DrawingState} drawing Drawing to add to group
+   * @param {string} groupId Group ID
+   * @returns {DrawingState} Updated drawing with group assignment
+   */
+  addDrawingToGroup(drawing, groupId) {
+    if (!drawing || !drawing.id) {
+      throw new Error('Valid drawing object is required');
+    }
+    if (!groupId) {
+      throw new Error('Group ID is required');
+    }
+
+    // Add groupId to the drawing
+    const updatedDrawing = { ...drawing };
+    updatedDrawing.groupId = groupId;
+
+    return updatedDrawing;
+  }
+
+  /**
+   * Filter drawings by group ID
+   * @param {DrawingSources} drawingSources Drawing sources data
+   * @param {string} groupId Group ID to filter by
+   * @returns {DrawingState[]} Array of drawings in the specified group
+   */
+  getDrawingsByGroup(drawingSources, groupId) {
+    if (!drawingSources || !drawingSources.sources) {
+      throw new Error('Valid drawing sources data is required');
+    }
+    if (!groupId) {
+      throw new Error('Group ID is required');
+    }
+
+    const drawings = [];
+    Object.values(drawingSources.sources).forEach(drawing => {
+      if (drawing.groupId === groupId) {
+        drawings.push(drawing);
+      }
+    });
+
+    return drawings;
+  }
+
+  /**
+   * Get all drawing groups from drawing sources
+   * @param {DrawingSources} drawingSources Drawing sources data
+   * @returns {DrawingGroup[]} Array of drawing groups
+   */
+  getDrawingGroups(drawingSources) {
+    if (!drawingSources || !drawingSources.drawing_groups) {
+      return [];
+    }
+
+    return Object.values(drawingSources.drawing_groups);
+  }
+
+  /**
+   * Remove a drawing group and unassign all drawings from it
+   * @param {DrawingSources} drawingSources Drawing sources data
+   * @param {string} groupId Group ID to remove
+   * @returns {DrawingSources} Updated drawing sources data
+   */
+  removeDrawingGroup(drawingSources, groupId) {
+    if (!drawingSources) {
+      throw new Error('Drawing sources data is required');
+    }
+    if (!groupId) {
+      throw new Error('Group ID is required');
+    }
+
+    const updatedSources = { ...drawingSources };
+    
+    // Remove the group
+    if (updatedSources.drawing_groups && updatedSources.drawing_groups[groupId]) {
+      delete updatedSources.drawing_groups[groupId];
+    }
+
+    // Unassign drawings from the group
+    if (updatedSources.sources) {
+      Object.keys(updatedSources.sources).forEach(drawingId => {
+        if (updatedSources.sources[drawingId].groupId === groupId) {
+          delete updatedSources.sources[drawingId].groupId;
+        }
+      });
+    }
+
+    return updatedSources;
   }
 
   /**

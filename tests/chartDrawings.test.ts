@@ -253,4 +253,270 @@ describe('ChartDrawings', () => {
       expect(source.state.state.linecolor).toBe('rgba(242, 54, 69, 1)');
     });
   });
+
+  describe('Drawing Groups', () => {
+    describe('createDrawingGroup', () => {
+      it('should create a drawing group with required properties', () => {
+        const group = chartDrawings.createDrawingGroup({
+          name: 'Test Group',
+          symbol: 'BINANCE:BTCUSDT'
+        });
+
+        expect(group).toHaveProperty('id');
+        expect(group.name).toBe('Test Group');
+        expect(group.symbol).toBe('BINANCE:BTCUSDT');
+        expect(group.currencyId).toBeNull();
+        expect(group.unitId).toBeNull();
+        expect(group.id).toMatch(/^[A-Za-z0-9]{6}$/);
+      });
+
+      it('should use provided ID if specified', () => {
+        const customId = 'CUSTOM';
+        const group = chartDrawings.createDrawingGroup({
+          id: customId,
+          name: 'Test Group',
+          symbol: 'BINANCE:BTCUSDT'
+        });
+
+        expect(group.id).toBe(customId);
+      });
+
+      it('should throw error if name is missing', () => {
+        expect(() => {
+          chartDrawings.createDrawingGroup({
+            symbol: 'BINANCE:BTCUSDT'
+          });
+        }).toThrow('Group name is required');
+      });
+
+      it('should throw error if symbol is missing', () => {
+        expect(() => {
+          chartDrawings.createDrawingGroup({
+            name: 'Test Group'
+          });
+        }).toThrow('Symbol is required');
+      });
+    });
+
+    describe('createDrawingSources', () => {
+      it('should create drawing sources with drawings and groups', () => {
+        const drawing = chartDrawings.createTrendLine({
+          id: 'test-line',
+          symbol: 'BINANCE:BTCUSDT',
+          points: [
+            { time_t: 1000000, offset: 0, price: 100, interval: '5' },
+            { time_t: 2000000, offset: 0, price: 200, interval: '5' }
+          ]
+        });
+
+        const group = chartDrawings.createDrawingGroup({
+          name: 'Test Group',
+          symbol: 'BINANCE:BTCUSDT'
+        });
+
+        const sources = chartDrawings.createDrawingSources({
+          drawings: [drawing],
+          groups: [group]
+        });
+
+        expect(sources).toHaveProperty('sources');
+        expect(sources).toHaveProperty('drawing_groups');
+        expect(sources).toHaveProperty('clientId');
+        expect(Object.keys(sources.sources)).toHaveLength(1);
+        expect(Object.keys(sources.drawing_groups)).toHaveLength(1);
+        expect(sources.sources['test-line']).toEqual(drawing);
+        expect(sources.drawing_groups[group.id]).toEqual(group);
+      });
+
+      it('should create drawing sources without groups', () => {
+        const drawing = chartDrawings.createTrendLine({
+          id: 'test-line',
+          symbol: 'BINANCE:BTCUSDT',
+          points: [
+            { time_t: 1000000, offset: 0, price: 100, interval: '5' },
+            { time_t: 2000000, offset: 0, price: 200, interval: '5' }
+          ]
+        });
+
+        const sources = chartDrawings.createDrawingSources({
+          drawings: [drawing]
+        });
+
+        expect(Object.keys(sources.sources)).toHaveLength(1);
+        expect(Object.keys(sources.drawing_groups)).toHaveLength(0);
+      });
+
+      it('should throw error if drawings array is missing', () => {
+        expect(() => {
+          chartDrawings.createDrawingSources({});
+        }).toThrow('Drawings array is required');
+      });
+
+      it('should throw error if drawings is not an array', () => {
+        expect(() => {
+          chartDrawings.createDrawingSources({
+            drawings: 'not-an-array'
+          });
+        }).toThrow('Drawings array is required');
+      });
+    });
+
+    describe('addDrawingToGroup', () => {
+      it('should add groupId to a drawing', () => {
+        const drawing = chartDrawings.createTrendLine({
+          id: 'test-line',
+          symbol: 'BINANCE:BTCUSDT',
+          points: [
+            { time_t: 1000000, offset: 0, price: 100, interval: '5' },
+            { time_t: 2000000, offset: 0, price: 200, interval: '5' }
+          ]
+        });
+
+        const groupId = 'test-group';
+        const groupedDrawing = chartDrawings.addDrawingToGroup(drawing, groupId);
+
+        expect(groupedDrawing.groupId).toBe(groupId);
+        expect(groupedDrawing.id).toBe(drawing.id);
+      });
+
+      it('should throw error if drawing is invalid', () => {
+        expect(() => {
+          chartDrawings.addDrawingToGroup(null, 'group-id');
+        }).toThrow('Valid drawing object is required');
+      });
+
+      it('should throw error if groupId is missing', () => {
+        const drawing = { id: 'test' };
+        expect(() => {
+          chartDrawings.addDrawingToGroup(drawing, '');
+        }).toThrow('Group ID is required');
+      });
+    });
+
+    describe('getDrawingsByGroup', () => {
+      it('should filter drawings by group ID', () => {
+        const group1 = 'group1';
+        const group2 = 'group2';
+        
+        const drawing1 = { id: 'draw1', groupId: group1 };
+        const drawing2 = { id: 'draw2', groupId: group2 };
+        const drawing3 = { id: 'draw3', groupId: group1 };
+        const drawing4 = { id: 'draw4' }; // No group
+
+        const sources = {
+          sources: {
+            'draw1': drawing1,
+            'draw2': drawing2,
+            'draw3': drawing3,
+            'draw4': drawing4
+          },
+          drawing_groups: {}
+        };
+
+        const group1Drawings = chartDrawings.getDrawingsByGroup(sources, group1);
+        const group2Drawings = chartDrawings.getDrawingsByGroup(sources, group2);
+
+        expect(group1Drawings).toHaveLength(2);
+        expect(group2Drawings).toHaveLength(1);
+        expect(group1Drawings).toContain(drawing1);
+        expect(group1Drawings).toContain(drawing3);
+        expect(group2Drawings).toContain(drawing2);
+      });
+
+      it('should return empty array if no drawings in group', () => {
+        const sources = {
+          sources: {
+            'draw1': { id: 'draw1', groupId: 'other-group' }
+          },
+          drawing_groups: {}
+        };
+
+        const result = chartDrawings.getDrawingsByGroup(sources, 'non-existent-group');
+        expect(result).toHaveLength(0);
+      });
+
+      it('should throw error if sources data is invalid', () => {
+        expect(() => {
+          chartDrawings.getDrawingsByGroup(null, 'group-id');
+        }).toThrow('Valid drawing sources data is required');
+      });
+
+      it('should throw error if groupId is missing', () => {
+        const sources = { sources: {} };
+        expect(() => {
+          chartDrawings.getDrawingsByGroup(sources, '');
+        }).toThrow('Group ID is required');
+      });
+    });
+
+    describe('getDrawingGroups', () => {
+      it('should return all drawing groups', () => {
+        const group1 = { id: 'g1', name: 'Group 1' };
+        const group2 = { id: 'g2', name: 'Group 2' };
+        
+        const sources = {
+          sources: {},
+          drawing_groups: {
+            'g1': group1,
+            'g2': group2
+          }
+        };
+
+        const groups = chartDrawings.getDrawingGroups(sources);
+        expect(groups).toHaveLength(2);
+        expect(groups).toContain(group1);
+        expect(groups).toContain(group2);
+      });
+
+      it('should return empty array if no groups', () => {
+        const sources = { sources: {}, drawing_groups: {} };
+        const groups = chartDrawings.getDrawingGroups(sources);
+        expect(groups).toHaveLength(0);
+      });
+
+      it('should return empty array if drawing_groups is missing', () => {
+        const sources = { sources: {} };
+        const groups = chartDrawings.getDrawingGroups(sources);
+        expect(groups).toHaveLength(0);
+      });
+    });
+
+    describe('removeDrawingGroup', () => {
+      it('should remove group and unassign drawings', () => {
+        const groupId = 'test-group';
+        const sources = {
+          sources: {
+            'draw1': { id: 'draw1', groupId: groupId },
+            'draw2': { id: 'draw2', groupId: 'other-group' },
+            'draw3': { id: 'draw3', groupId: groupId }
+          },
+          drawing_groups: {
+            [groupId]: { id: groupId, name: 'Test Group' },
+            'other-group': { id: 'other-group', name: 'Other Group' }
+          }
+        };
+
+        const updated = chartDrawings.removeDrawingGroup(sources, groupId);
+
+        expect(updated.drawing_groups[groupId]).toBeUndefined();
+        expect(updated.drawing_groups['other-group']).toBeDefined();
+        expect(updated.sources['draw1'].groupId).toBeUndefined();
+        expect(updated.sources['draw2'].groupId).toBe('other-group');
+        expect(updated.sources['draw3'].groupId).toBeUndefined();
+      });
+
+      it('should throw error if sources data is missing', () => {
+        expect(() => {
+          chartDrawings.removeDrawingGroup(null, 'group-id');
+        }).toThrow('Drawing sources data is required');
+      });
+
+      it('should throw error if groupId is missing', () => {
+        const sources = { sources: {}, drawing_groups: {} };
+        expect(() => {
+          chartDrawings.removeDrawingGroup(sources, '');
+        }).toThrow('Group ID is required');
+      });
+    });
+  });
 });

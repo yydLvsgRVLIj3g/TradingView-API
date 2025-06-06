@@ -5,16 +5,21 @@ const TradingView = require('../main');
  * This example shows the minimal code needed to save a trend line to a chart
  */
 
-// Replace with your actual credentials and layout ID
-const credentials = {
-  session: process.env.SESSION,
-  signature: process.env.SIGNATURE,
-  id: process.env.USER_ID, // Optional
-};
+// First parameter must be the layoutID
+// If the layout is private:
+// - Second parameter must be the userid (you can use getUser function)
+// - You should provide your sessionid and signature cookies in .env file
 
-const layoutId = '8N39bUTh'; // Replace with your layout ID
+if (!process.argv[2]) throw Error('Please specify a layoutID');
 
 async function basicExample() {
+  // Replace with your actual credentials
+  const credentials = {
+    session: process.env.SESSION,
+    signature: process.env.SIGNATURE,
+    id: process.argv[3], // Optional user ID from command line
+  };
+
   // Create ChartDrawings instance
   const chartDrawings = new TradingView.ChartDrawings(credentials);
 
@@ -41,8 +46,8 @@ async function basicExample() {
   };
 
   try {
-    // Save the drawing
-    await chartDrawings.saveDrawings(layoutId, drawingData);
+    // Save the drawing using layoutID from command line
+    await chartDrawings.saveDrawings(process.argv[2], drawingData);
     console.log('✅ Drawing saved successfully!');
   } catch (error) {
     console.error('❌ Error:', error.message);
