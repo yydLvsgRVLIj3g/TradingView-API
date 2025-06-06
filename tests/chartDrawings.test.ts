@@ -117,7 +117,7 @@ describe('ChartDrawings', () => {
       
       expect(() => {
         chartDrawings.createTrendLine(optionsWithoutId as any);
-      }).toThrow('ID, symbol, and exactly 2 points are required for trend line');
+      }).toThrow('Drawing ID is required');
     });
 
     it('should throw error when symbol is missing', () => {
@@ -128,7 +128,7 @@ describe('ChartDrawings', () => {
       
       expect(() => {
         chartDrawings.createTrendLine(optionsWithoutSymbol as any);
-      }).toThrow('ID, symbol, and exactly 2 points are required for trend line');
+      }).toThrow('Symbol is required');
     });
 
     it('should throw error when points are missing', () => {
@@ -139,7 +139,7 @@ describe('ChartDrawings', () => {
       
       expect(() => {
         chartDrawings.createTrendLine(optionsWithoutPoints as any);
-      }).toThrow('ID, symbol, and exactly 2 points are required for trend line');
+      }).toThrow('Exactly 2 points are required');
     });
 
     it('should throw error when not exactly 2 points', () => {
@@ -150,7 +150,7 @@ describe('ChartDrawings', () => {
       
       expect(() => {
         chartDrawings.createTrendLine(optionsWithOnePoint);
-      }).toThrow('ID, symbol, and exactly 2 points are required for trend line');
+      }).toThrow('Exactly 2 points are required');
 
       const optionsWithThreePoints = {
         ...validOptions,
@@ -163,7 +163,7 @@ describe('ChartDrawings', () => {
       
       expect(() => {
         chartDrawings.createTrendLine(optionsWithThreePoints);
-      }).toThrow('ID, symbol, and exactly 2 points are required for trend line');
+      }).toThrow('Exactly 2 points are required');
     });
 
     it('should generate linkKey and set default properties', () => {
