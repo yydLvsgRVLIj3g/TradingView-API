@@ -8,10 +8,11 @@ const TradingView = require('../main');
 // If the layout is private:
 // - Second parameter must be the userid (you can use getUser function)
 // - You should provide your sessionid and signature cookies in .env file
+//console.log(process.argv)
 
 if (!process.argv[2]) throw Error('Please specify a layoutID');
 
-TradingView.getDrawings(process.argv[2], null, {
+TradingView.getDrawings(process.argv[2], 'BINANCE:UNIUSDT.P', {
   session: process.env.SESSION,
   signature: process.env.SIGNATURE,
   id: process.argv[3],

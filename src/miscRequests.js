@@ -573,15 +573,16 @@ module.exports = {
    */
 
   /**
-   * Get a chart token from a layout ID and the user credentials if the layout is not public
+   * Get drawings from a chart layout
    * @function getDrawings
    * @param {string} layout The layout ID found in the layout URL (Like: 'XXXXXXXX')
    * @param {string | ''} [symbol] Market filter (Like: 'BINANCE:BTCEUR')
    * @param {UserCredentials} [credentials] User credentials (id + session + [signature])
    * @param {number} [chartID] Chart ID
-   * @returns {Promise<Drawing[]>} Drawings
+   * @param {boolean} [parseResponse] Whether to parse the response using DrawingParser (default: true)
+   * @returns {Promise<Drawing[] | ParsedDrawingsResponse>} Drawings (raw or parsed based on parseResponse)
    */
-  async getDrawings(layout, symbol = '', credentials = {}, chartID = '_shared') {
+  async getDrawings(layout, symbol = '', credentials = {}, chartID = '_shared', parseResponse = true) {
     const chartToken = await module.exports.getChartToken(layout, credentials);
 
     const { data } = await axios.get(
@@ -589,10 +590,15 @@ module.exports = {
         layout
       }/sources`,
       {
+        headers: {
+          cookie: genAuthCookies(credentials.session, credentials.signature),
+        },
         params: {
           chart_id: chartID,
+          layout_id: layout,
           jwt: chartToken,
           symbol,
+          brokerName: '',
         },
         validateStatus,
       },
@@ -600,8 +606,14 @@ module.exports = {
 
     if (!data.payload) throw new Error('Wrong layout, user credentials, or chart id.');
 
-    return Object.values(data.payload.sources || {}).map((drawing) => ({
-      ...drawing, ...drawing.state,
-    }));
+    // If parseResponse is false, return raw data as before
+    if (!parseResponse) {
+      return Object.values(data.payload.sources || {}).map((drawing) => ({
+        ...drawing, ...drawing.state,
+      }));
+    }
+
+    // Use DrawingParser to parse the response
+    return DrawingParser.parse(data);
   },
 };

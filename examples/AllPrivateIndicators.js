@@ -3,7 +3,6 @@ const TradingView = require('../main');
 /**
  * This example creates a chart with all user's private indicators
  */
-
 if (!process.env.SESSION || !process.env.SIGNATURE) {
   throw Error('Please set your sessionid and signature cookies');
 }
