@@ -16,13 +16,35 @@ TradingView.getDrawings(process.argv[2], 'BINANCE:UNIUSDT.P', {
   session: process.env.SESSION,
   signature: process.env.SIGNATURE,
   id: process.argv[3],
-}).then((drawings) => {
-  console.log(`Found ${drawings.length} drawings:`, drawings.map((d) => ({
-    id: d.id,
-    symbol: d.symbol,
-    type: d.type,
-    text: d.state.text,
-  })));
+}).then((result) => {
+  console.log(`Found ${result.drawings.length} drawings:`);
+  
+  result.drawings.forEach((drawing) => {
+    console.log(`- ${drawing.id}: ${drawing.type} (${drawing.symbol})`);
+    if (drawing.text) console.log(`  Text: ${drawing.text}`);
+    if (drawing.title) console.log(`  Title: ${drawing.title}`);
+    console.log(`  Points: ${drawing.points.length}`);
+    console.log(`  Visible: ${drawing.visible}, Frozen: ${drawing.frozen}`);
+    if (drawing.groupId) console.log(`  Group: ${drawing.groupId}`);
+    console.log('---');
+  });
+
+  if (result.groups.length > 0) {
+    console.log(`\nFound ${result.groups.length} groups:`);
+    result.groups.forEach((group) => {
+      console.log(`- ${group.id}: ${group.name} (${group.symbol})`);
+    });
+  }
+
+  // Show summary
+  const summary = TradingView.DrawingParser.getSummary(result.drawings);
+  console.log('\nSummary:', {
+    total: summary.total,
+    visible: summary.visible,
+    frozen: summary.frozen,
+    grouped: summary.grouped,
+    types: summary.typeCount
+  });
 }).catch((err) => {
   console.error('Error:', err.message);
 });

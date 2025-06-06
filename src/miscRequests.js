@@ -2,6 +2,7 @@ const os = require('os');
 const axios = require('axios');
 
 const PineIndicator = require('./classes/PineIndicator');
+const DrawingParser = require('./classes/DrawingParser');
 const { genAuthCookies } = require('./utils');
 
 const validateStatus = (status) => status < 500;
